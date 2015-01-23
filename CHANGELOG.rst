@@ -1,5 +1,10 @@
-sc_website Change Log
-=====================
+Embedded webserver library change log
+=====================================
+
+2.0.0
+-----
+  * Rearrange to new file structure
+  * Change examples to work with new xtcp and ethernet libraries
 
 1.0.3
 -----

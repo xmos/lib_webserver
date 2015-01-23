@@ -1,27 +1,24 @@
-Embedded Website Component
-..........................
+Embedded Webserver Library
+==========================
 
-:Latest release: 1.0.3rc1
-:Maintainer: davelxmos
-:Description: Embedded website component repository
+Overview
+--------
 
+This software library allows you to generate a webserver that
+communicates using the XMOS TCP/IP server component.
 
-website that can be stored in flash.
+Features
+........
 
-To Do
-=====
-
-* Add support for images/binary data
-* Add support for accessing flash from within the web server thread
-
-Required software (dependencies)
-================================
-
-  * sc_xtcp (git@github.com:xcore/sc_xtcp)
-  * sc_ethernet (git@github.com:xcore/sc_ethernet.git)
-  * sc_slicekit_support (git@github.com:xcore/sc_slicekit_support)
-  * sc_wifi (git@github.com:xcore/sc_wifi)
-  * sc_otp (git@github.com:xcore/sc_otp)
-  * sc_util (git@github.com:xcore/sc_util)
-  * sc_spi (https://github.com/xcore/sc_spi.git)
+ * Automatically package a file tree of web pages into data that be
+   accessed on the device
+ * Store web pages in either program memory or on an attached SPI
+   flash
+ * Call C/XC functions from within web page templates to access
+   dynamic content
+ * Handle GET and POST HTTP requests
+ * Separate the handling of TCP traffic and the access of flash into
+   different tasks passing data over XC channels. Allowing you to
+   integrate the webserver in other applications that already handle
+   TCP or access flash.
 

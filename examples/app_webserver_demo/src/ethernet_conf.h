@@ -1,0 +1,1 @@
+#define ETHERNET_USE_SQUARE_SLOT 1

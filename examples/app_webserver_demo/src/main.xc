@@ -37,7 +37,8 @@ xtcp_ipconfig_t ipconfig = {
 };
 
 
-#define XTCP_MII_BUFSIZE 4096
+#define XTCP_MII_BUFSIZE (4096)
+#define ETHERNET_SMI_PHY_ADDRESS (0)
 
 int get_timer_value(char buf[], int x)
 {
@@ -76,12 +77,13 @@ int main(void) {
                     eth_rxclk, eth_txclk, XTCP_MII_BUFSIZE);
 
     // SMI/ethernet phy driver
-    on tile[1]: smi(i_smi, 0x0, p_smi_mdio, p_smi_mdc);
+    on tile[1]: smi(i_smi, p_smi_mdio, p_smi_mdc);
 
     // TCP component
     on tile[1]: xtcp(c_xtcp, 1, i_mii,
                      null, null, null,
-                     i_smi, null, otp_ports, ipconfig);
+                     i_smi, ETHERNET_SMI_PHY_ADDRESS,
+                     null, otp_ports, ipconfig);
 
     // HTTP server application
     on tile[1]: tcp_handler(c_xtcp[0]);

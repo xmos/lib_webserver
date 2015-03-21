@@ -1,19 +1,9 @@
 .. include:: ../../../README.rst
 
-Software version and dependencies
-.................................
-
-.. libdeps::
-
-Related application notes
-.........................
-
-TODO
-
 Usage
 -----
 
-To use the module you need to add ``lib_webserver`` to the
+To use the library you need to add ``lib_webserver`` to the
 ``USED_MODULES`` variable in your application Makefile.
 
 Within your application you can also add the following files to
@@ -53,7 +43,7 @@ To run from flash you need to:
 
 This will cause the web pages to be packed into a binary image and
 placed into the application binary directory. See
-:ref:`module_webserver_flashing_pages` for details on how to write the
+:ref:`lib_webserver_flashing_pages` for details on how to write the
 data to SPI flash.
 
 Configuring the webserver to run from flash with a separate flash task
@@ -72,7 +62,7 @@ To run from flash you need to:
 
 This will cause the web pages to be packed into a binary image and
 placed into the application binary directory. See
-:ref:`module_webserver_flashing_pages` for details on how to write the
+:ref:`lib_webserver_flashing_pages` for details on how to write the
 data to SPI flash.
 
 Creating the web pages
@@ -101,7 +91,7 @@ it:
      in place of the tag
    * ``int connection_state`` - an integer representing the connection
      state of the current HTTP connection. This can be used with the
-     functions in :ref:`module_webserver_dynamic_content_api`.
+     functions in :ref:`lib_webserver_dynamic_content_api`.
    * ``int app_state`` - an integer representing the application
      state. This integer can be set with the :c:func:`web_server_set_app_state`.
 
@@ -144,7 +134,7 @@ page returned to the client will be::
 
   <p>Hello World!</p>
 
-.. _module_webserver_flashing_pages:
+.. _lib_webserver_flashing_pages:
 
 Writing the pages to SPI flash
 ..............................
@@ -163,6 +153,11 @@ See :ref:`xflash_manual` for more details on how to use ``xflash``.
 
 Integrating the webserver into your code
 ........................................
+
+All functions in your code to call the webserver can be found in the
+``web_server.h`` header::
+
+   #include <web_server.h>
 
 Without SPI Flash
 +++++++++++++++++
@@ -264,11 +259,90 @@ The task handling the flash should look something like this::
 Again this task may perform other application tasks (that may access
 the SPI flash) as well as assisting the web server.
 
-API
----
+Communicating with other tasks in webpage content
++++++++++++++++++++++++++++++++++++++++++++++++++
 
-These defines can be set in a file called ``web_server_conf.h`` within your
-application source tree.
+It is possible to communicate with other tasks from dynamic content
+calls when rendering the webpage. The top-level main of your program
+will be something like the following::
+
+  int main() {
+     ...
+     par {
+      ...
+      on tile[1]: xtcp(c_xtcp, 1, i_mii,
+                       null, null, null,
+                       i_smi, ETHERNET_SMI_PHY_ADDRESS,
+                       null, otp_ports, ipconfig);
+
+      on tile[1]: tcp_handler(c_xtcp[0]);
+      ...
+      }
+  }
+
+Where ``tcp_handler`` is the task that calls the web event handler
+and serves the web pages. Now suppose, we add a new task that we want
+to communicate to via the web page (in this example, an I2C bus)::
+
+  int main() {
+     ...
+     par {
+      ...
+      on tile[1]: xtcp(c_xtcp, 1, i_mii,
+                       null, null, null,
+                       i_smi, ETHERNET_SMI_PHY_ADDRESS,
+                       null, otp_ports, ipconfig);
+
+      on tile[1]: tcp_handler(c_xtcp[0], i_i2c);
+      on tile[1]: i2c_master(i_i2c, 1, p_scl, p_sda, 100);
+      ...
+      }
+  }
+
+The ``i_i2c`` connection to the ``i2c_master`` task is passed to the
+``tcp_handler``.
+
+The ``tcp_handler`` needs to store the connection to the I2C task as a
+global to allow the web-page function to access it. This is done via a
+xC *movable* pointer at the start of the task::
+
+  client i2c_master_if * movable p_i2c;
+
+  void tcp_handler(chanend c_xtcp, client i2c_master_if i2c) {
+     client i2c_master_if * movable p = &i2c;
+     p_i2c = move(p);
+
+     xtcp_connection_t conn;
+     web_server_init(c_xtcp, null, null);
+     ...
+
+This has *moved* a pointer to the I2C interface to the global variable
+``p_i2c``. This can now be used in a web-page function. In a seperate
+file you can write::
+
+  extern client i2c_master_if * movable p_i2c;
+
+  void do_i2c_stuff() {
+     i2c_regop_res_t result;
+     result = p_i2c->write_reg(0x45, 0x07, 0x12);
+  }
+
+This function can be called from a dynamic expression in a webpage
+e.g.::
+
+   {% do_i2c_stuff() %}
+
+Remember that functions call from dynamic webpage content must be
+prototyped in the ``web_server_conf.h`` header in your application.
+
+
+API - Configuration defines
+---------------------------
+
+These defines can either be set in your Makefile (by adding
+``-DNAME=VALUE`` to ``XCC_FLAGS``) or in a file called
+``web_server_conf.h`` within your application source tree (this will
+get examined by the library).
 
 .. doxygendefine:: WEB_SERVER_PORT
 .. doxygendefine:: WEB_SERVER_USE_FLASH
@@ -283,6 +357,13 @@ application source tree.
    application and connection state and must have the type::
 
      void render(int app_state, int connection_state)
+
+API
+---
+
+All functions can be found in the ``web_server.h`` header::
+
+   #include <web_server.h>
 
 Web Server Functions
 ....................
@@ -341,7 +422,7 @@ follow a pattern similar to::
 .. doxygenfunction:: web_server_flash_handler
 
 
-.. _module_webserver_dynamic_content_api:
+.. _lib_webserver_dynamic_content_api:
 
 Functions that can be called during page rendering
 ..................................................

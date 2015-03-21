@@ -22,3 +22,29 @@ Features
    integrate the webserver in other applications that already handle
    TCP or access flash.
 
+Typical Resource Usage
+......................
+
+.. resusage::
+
+  * - configuration: Default
+    - globals: xtcp_connection_t conn;
+    - locals: chan c;
+    - fn: {web_server_init(c, null, null);web_server_handle_event(c,null,null,conn);}
+    - pins: 0
+    - ports: 0
+
+Note that this does not include the TCP/IP stack (which is a separate
+library) or any web-pages stored in memory.
+
+Software version and dependencies
+.................................
+
+.. libdeps::
+
+Related application notes
+.........................
+
+The following application notes use this library:
+
+  * AN00122 - Using the XMOS embedded webserver library

@@ -1,3 +1,4 @@
+// Copyright (c) 2015, XMOS Ltd, All rights reserved
 #ifndef _mutual_comm_h_
 #define _mutual_comm_h_
 #include <xccompat.h>

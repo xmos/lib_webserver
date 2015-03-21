@@ -1,3 +1,4 @@
+// Copyright (c) 2015, XMOS Ltd, All rights reserved
 #define WEB_SERVER_USE_FLASH 1
 
 #define WEB_SERVER_FLASH_DEVICES flash_devices

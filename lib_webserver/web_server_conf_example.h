@@ -1,3 +1,4 @@
+// Copyright (c) 2015, XMOS Ltd, All rights reserved
 
 // Set this define to 1 if you want the web server to use flash
 #define WEB_SERVER_USE_FLASH 0

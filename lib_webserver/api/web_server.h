@@ -1,4 +1,4 @@
-// Copyright (c) 2015, XMOS Ltd, All rights reserved
+// Copyright (c) 2016, XMOS Ltd, All rights reserved
 #ifndef _WEB_SERVER_H_
 #define _WEB_SERVER_H_
 #include <xccompat.h>

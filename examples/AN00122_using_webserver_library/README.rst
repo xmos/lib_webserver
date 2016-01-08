@@ -1,7 +1,7 @@
 Using the XMOS embedded webserver library
 =========================================
 
-.. version:: 2.0.0
+.. version:: 2.0.1
 
 Summary
 -------

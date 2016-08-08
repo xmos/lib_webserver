@@ -1,4 +1,4 @@
-// Copyright (c) 2016, XMOS Ltd, All rights reserved
+// Copyright (c) 2012-2016, XMOS Ltd, All rights reserved
 #include "web_page_functions.h"
 
 // Set the function to run after rendering a page

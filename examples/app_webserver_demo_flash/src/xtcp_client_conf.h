@@ -1,4 +1,4 @@
-// Copyright (c) 2016, XMOS Ltd, All rights reserved
+// Copyright (c) 2012-2016, XMOS Ltd, All rights reserved
 
 
 // Remove this to prevent some information being displayed on the debug console

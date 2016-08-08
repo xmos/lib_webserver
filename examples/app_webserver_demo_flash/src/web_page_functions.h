@@ -1,4 +1,4 @@
-// Copyright (c) 2016, XMOS Ltd, All rights reserved
+// Copyright (c) 2012-2016, XMOS Ltd, All rights reserved
 #ifndef __web_page_functions_h__
 #define __web_page_functions_h__
 

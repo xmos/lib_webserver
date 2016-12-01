@@ -29,7 +29,7 @@
  *                        should supply the ports to access the flash. Otherwise
  *                        it should be set to null.
  */
-void web_server_init(chanend c_xtcp,
+void web_server_init(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                      NULLABLE_RESOURCE(chanend, c_flash),
                      NULLABLE_REFERENCE_PARAM(fl_SPIPorts, flash_ports));
 
@@ -52,10 +52,11 @@ void web_server_init(chanend c_xtcp,
  *
  *  \param conn        The tcp connection structure containing the new event
  */
-void web_server_handle_event(chanend c_xtcp,
+void web_server_handle_event(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                              NULLABLE_RESOURCE(chanend, c_flash),
                              NULLABLE_REFERENCE_PARAM(fl_SPIPorts, flash_ports),
-                             REFERENCE_PARAM(xtcp_connection_t, conn));
+                             REFERENCE_PARAM(xtcp_connection_t, conn),
+                             char buffer[]);
 
 /** Set the application state of the web server.
  *
@@ -86,7 +87,7 @@ void web_server_flash_response(chanend c_flash);
  *  \param c_flash   chanend connected to separate flash task
  *  \param c_xtcp    chanend connected to the xtcp server
  */
-void web_server_flash_handler(chanend c_flash, chanend c_xtcp);
+void web_server_flash_handler(chanend c_flash, CLIENT_INTERFACE(xtcp_if, i_xtcp));
 #endif
 
 /** Get a web page parameter.

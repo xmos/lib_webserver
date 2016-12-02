@@ -309,9 +309,12 @@ static void web_server_send(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                             xtcp_connection_t *conn,
                             connection_state_t *st)
 {
-  if (simplefs_data_available(c_flash,
-                              st->next_data,
-                              WEB_SERVER_SEND_BUF_SIZE)) {
+  if (st->next_data >= st->end_of_data) {
+    xtcp_close_c(i_xtcp, conn);
+    st->active = 0;
+  } else if (simplefs_data_available(c_flash,
+      st->next_data,
+      WEB_SERVER_SEND_BUF_SIZE)) {
     prepare_data(c_flash, st);
     xtcp_send_c(i_xtcp, conn, st->current_data, st->current_data_len);
     #ifdef WEB_SERVER_POST_RENDER_FUNCTION
@@ -484,6 +487,7 @@ static void parse_http_request(CLIENT_INTERFACE(xtcp_if, i_xtcp),
   }
   if (st->parsing_state == PARSING_PARAMS &&
       st->content_len == 0) {
+
     st->params[st->params_len] = 0;
     web_server_send(i_xtcp, c_flash, conn, st);
     st->parsing_state = PARSING_IDLE;
@@ -542,5 +546,3 @@ void web_server_handle_event(CLIENT_INTERFACE(xtcp_if, i_xtcp),
   }
   return;
 }
-
-

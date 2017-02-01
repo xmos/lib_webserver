@@ -143,7 +143,7 @@ int process_web_page_data(char buf[], int app_state0, int connection_state)
 
   user_choice = web_server_get_param("l2", connection_state);
   if (user_choice && (*user_choice)) {
-    // toggle LED 1
+    // toggle LED 2
     app_state->led_state[2] ^= 1;
     set_led_state(2, app_state->led_state[2]);
     return 0;
@@ -151,7 +151,7 @@ int process_web_page_data(char buf[], int app_state0, int connection_state)
 
   user_choice = web_server_get_param("l3", connection_state);
   if (user_choice && (*user_choice)) {
-    // toggle LED 1
+    // toggle LED 3
     app_state->led_state[3] ^= 1;
     set_led_state(3, app_state->led_state[3]);
     return 0;

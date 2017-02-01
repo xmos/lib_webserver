@@ -5,6 +5,7 @@
 #include "print.h"
 #include "flash.h"
 #include "stdlib.h"
+#include "web_server_xtcp_compat.h"
 
 #ifdef __web_server_conf_h_exists__
 #include "web_server_conf.h"
@@ -84,13 +85,15 @@ void web_server_check_signature(fl_SPIPorts *flash_ports)
 }
 #endif
 
-void web_server_init(chanend c_xtcp, chanend c_flash, fl_SPIPorts *fports)
+void web_server_init(CLIENT_INTERFACE(xtcp_if, i_xtcp), 
+                     chanend c_flash, 
+                     fl_SPIPorts *fports)
 {
   #if WEB_SERVER_USE_FLASH && !WEB_SERVER_SEPARATE_FLASH_TASK && WEB_SERVER_CHECK_FLASH_SIGNATURE
   web_server_check_signature(fports);
   #endif
   simplefs_init(fports);
-  xtcp_listen(c_xtcp, WEB_SERVER_PORT, XTCP_PROTOCOL_TCP);
+  xtcp_listen_c(i_xtcp, WEB_SERVER_PORT, XTCP_PROTOCOL_TCP);
   for (int i=0;i<WEB_SERVER_NUM_CONNECTIONS;i++) {
     connection_state[i].active = 0;
   }
@@ -211,174 +214,10 @@ static void set_content_length(connection_state_t *st)
   }
 }
 
-static void parse_http_request(chanend c_xtcp,
-                               xtcp_connection_t *conn,
-                               connection_state_t *st,
-                               char *buf,
-                               int len)
-{
-  // We make the assumption that the uri  is contained in the fisrt
-  // chunk of data we get so we don't have to maintain a partial uri string
-  // per connection
-  char *end = buf+len;
-  char uri[WEB_SERVER_MAX_URI_LENGTH+1];
-  int uri_len = 0;
-
-  while (buf < end) {
-    switch (st->parsing_state)
-      {
-      case PARSING_METHOD:
-        if (strncmp(buf,"GET ",4)==0) {
-          st->request_method = REQUEST_GET;
-          buf += 4;
-          st->parsing_state = PARSING_URI;
-        } else if (strncmp(buf,"POST ",5)==0) {
-          st->request_method = REQUEST_POST;
-          buf += 5;
-          st->parsing_state = PARSING_URI;
-        } else {
-          st->parsing_state = PARSING_IDLE;
-          xtcp_abort(c_xtcp, conn);
-          return;
-        }
-        break;
-      case PARSING_URI:
-        switch (*buf) {
-        case ' ':
-          uri[uri_len] = 0;
-          get_resource(st, uri);
-          st->parsing_state = PARSING_HEADERS;
-          break;
-        case '?':
-          uri[uri_len] = 0;
-          get_resource(st, uri);
-          st->parsing_state = PARSING_PARAMS;
-          break;
-        default:
-          if (uri_len < WEB_SERVER_MAX_URI_LENGTH) {
-            uri[uri_len] = *buf;
-            uri_len++;
-          }
-          break;
-        }
-        buf++;
-        break;
-      case PARSING_HEADERS:
-        switch (*buf)
-          {
-          case 13:
-            buf++;
-          case 10:
-            buf++;
-            if (st->request_method == REQUEST_POST)
-              st->parsing_state = PARSING_PARAMS;
-            else {
-              xtcp_init_send(c_xtcp, conn);
-              st->parsing_state = PARSING_IDLE;
-            }
-            break;
-          default:
-            // This code reuses the current_data array to store
-            // the header names
-            st->current_data[0] = *buf;
-            buf++;
-            st->parsing_state = PARSING_HEADER;
-            st->current_data_len = 1;
-            break;
-          }
-        break;
-      case PARSING_HEADER:
-        switch (*buf)
-          {
-          case 13:
-            buf++;
-          case 10:
-            buf++;
-            st->current_data[st->current_data_len] = 0;
-            set_content_length(st);
-            st->parsing_state = PARSING_HEADERS;
-            break;
-          default:
-            if (st->current_data_len < WEB_SERVER_SEND_BUF_SIZE-1) {
-              if (*buf==':')
-                st->current_data[st->current_data_len] = 0;
-              else
-                st->current_data[st->current_data_len] = *buf;
-              st->current_data_len++;
-            }
-            buf++;
-            break;
-          }
-        break;
-      case PARSING_PARAMS:
-        switch (*buf)
-          {
-          case ' ':
-            st->params[st->params_len] = 0;
-            st->params_len++;
-            st->parsing_state = PARSING_HEADERS;
-            break;
-          case 13:
-          case 10:
-            st->params[st->params_len] = 0;
-            st->params_len++;
-            xtcp_init_send(c_xtcp, conn);
-            st->parsing_state = PARSING_IDLE;
-            break;
-          case '&':
-          case '=':
-            if (st->params_len < WEB_SERVER_MAX_PARAMS_LENGTH) {
-              st->params[st->params_len] = 0;
-              st->params_len++;
-            }
-            break;
-          default:
-            if (st->params_len < WEB_SERVER_MAX_PARAMS_LENGTH) {
-              st->params[st->params_len] = *buf;
-              st->params_len++;
-            }
-            break;
-          }
-        if (st->content_len > 0) {
-          st->content_len--;
-        }
-        buf++;
-        break;
-      case PARSING_IDLE:
-        // Nothing to do
-        return;
-      }
-  }
-  if (st->parsing_state == PARSING_PARAMS &&
-      st->content_len == 0) {
-    st->params[st->params_len] = 0;
-    xtcp_init_send(c_xtcp, conn);
-    st->parsing_state = PARSING_IDLE;
-  }
-}
-
 extern int web_server_dyn_expr(int exp,
                                char *buf,
                                int app_state,
                                int connection_state);
-
-void web_server_unpause_senders(chanend c_flash, chanend c_xtcp)
-{
-  for (int i=0;i<WEB_SERVER_NUM_CONNECTIONS;i++) {
-    connection_state_t *st = &connection_state[i];
-    if (st->active &&
-        st->sending_paused &&
-        simplefs_data_available(c_flash,
-                                st->next_data,
-                                WEB_SERVER_SEND_BUF_SIZE))
-      {
-        xtcp_connection_t conn;
-        conn.id = st->conn_id;
-        xtcp_init_send(c_xtcp, &conn);
-        st->sending_paused = 0;
-      }
-  }
-}
 
 static void update_data_cache(chanend c_flash)
 {
@@ -465,17 +304,205 @@ static void prepare_data(chanend c_flash, connection_state_t *st)
   st->next_data += (src - src0);
 }
 
-void web_server_handle_event(chanend c_xtcp,
+static void web_server_send(CLIENT_INTERFACE(xtcp_if, i_xtcp),
+                            chanend c_flash,
+                            xtcp_connection_t *conn,
+                            connection_state_t *st)
+{
+  if (st->next_data >= st->end_of_data) {
+    xtcp_close_c(i_xtcp, conn);
+    st->active = 0;
+  } else if (simplefs_data_available(c_flash,
+      st->next_data,
+      WEB_SERVER_SEND_BUF_SIZE)) {
+    prepare_data(c_flash, st);
+    xtcp_send_c(i_xtcp, conn, st->current_data, st->current_data_len);
+    #ifdef WEB_SERVER_POST_RENDER_FUNCTION
+    WEB_SERVER_POST_RENDER_FUNCTION((int) app_state, (int) st);
+    #endif
+    update_data_cache(c_flash);
+  } else {
+    st->sending_paused = 1;
+    update_data_cache(c_flash);
+  }
+}
+
+void web_server_unpause_senders(chanend c_flash, 
+                                CLIENT_INTERFACE(xtcp_if, i_xtcp))
+{
+  for (int i=0;i<WEB_SERVER_NUM_CONNECTIONS;i++) {
+    connection_state_t *st = &connection_state[i];
+    if (st->active &&
+        st->sending_paused &&
+        simplefs_data_available(c_flash,
+                                st->next_data,
+                                WEB_SERVER_SEND_BUF_SIZE))
+      {
+        xtcp_connection_t conn;
+        conn.id = st->conn_id;
+        web_server_send(i_xtcp, c_flash, &conn, st);
+        st->sending_paused = 0;
+      }
+  }
+}
+
+static void parse_http_request(CLIENT_INTERFACE(xtcp_if, i_xtcp),
+                               chanend c_flash,
+                               xtcp_connection_t *conn,
+                               connection_state_t *st,
+                               char *buf,
+                               int len)
+{
+  // We make the assumption that the uri  is contained in the fisrt
+  // chunk of data we get so we don't have to maintain a partial uri string
+  // per connection
+  char *end = buf+len;
+  char uri[WEB_SERVER_MAX_URI_LENGTH+1];
+  int uri_len = 0;
+
+  while (buf < end) {
+    switch (st->parsing_state)
+      {
+      case PARSING_METHOD:
+        if (strncmp(buf,"GET ",4)==0) {
+          st->request_method = REQUEST_GET;
+          buf += 4;
+          st->parsing_state = PARSING_URI;
+        } else if (strncmp(buf,"POST ",5)==0) {
+          st->request_method = REQUEST_POST;
+          buf += 5;
+          st->parsing_state = PARSING_URI;
+        } else {
+          st->parsing_state = PARSING_IDLE;
+          xtcp_abort_c(i_xtcp, conn);
+          return;
+        }
+        break;
+      case PARSING_URI:
+        switch (*buf) {
+        case ' ':
+          uri[uri_len] = 0;
+          get_resource(st, uri);
+          st->parsing_state = PARSING_HEADERS;
+          break;
+        case '?':
+          uri[uri_len] = 0;
+          get_resource(st, uri);
+          st->parsing_state = PARSING_PARAMS;
+          break;
+        default:
+          if (uri_len < WEB_SERVER_MAX_URI_LENGTH) {
+            uri[uri_len] = *buf;
+            uri_len++;
+          }
+          break;
+        }
+        buf++;
+        break;
+      case PARSING_HEADERS:
+        switch (*buf)
+          {
+          case 13:
+            buf++;
+          case 10:
+            buf++;
+            if (st->request_method == REQUEST_POST)
+              st->parsing_state = PARSING_PARAMS;
+            else {
+              web_server_send(i_xtcp, c_flash, conn, st);
+              st->parsing_state = PARSING_IDLE;
+            }
+            break;
+          default:
+            // This code reuses the current_data array to store
+            // the header names
+            st->current_data[0] = *buf;
+            buf++;
+            st->parsing_state = PARSING_HEADER;
+            st->current_data_len = 1;
+            break;
+          }
+        break;
+      case PARSING_HEADER:
+        switch (*buf)
+          {
+          case 13:
+            buf++;
+          case 10:
+            buf++;
+            st->current_data[st->current_data_len] = 0;
+            set_content_length(st);
+            st->parsing_state = PARSING_HEADERS;
+            break;
+          default:
+            if (st->current_data_len < WEB_SERVER_SEND_BUF_SIZE-1) {
+              if (*buf==':')
+                st->current_data[st->current_data_len] = 0;
+              else
+                st->current_data[st->current_data_len] = *buf;
+              st->current_data_len++;
+            }
+            buf++;
+            break;
+          }
+        break;
+      case PARSING_PARAMS:
+        switch (*buf)
+          {
+          case ' ':
+            st->params[st->params_len] = 0;
+            st->params_len++;
+            st->parsing_state = PARSING_HEADERS;
+            break;
+          case 13:
+          case 10:
+            st->params[st->params_len] = 0;
+            st->params_len++;
+            web_server_send(i_xtcp, c_flash, conn, st);
+            st->parsing_state = PARSING_IDLE;
+            break;
+          case '&':
+          case '=':
+            if (st->params_len < WEB_SERVER_MAX_PARAMS_LENGTH) {
+              st->params[st->params_len] = 0;
+              st->params_len++;
+            }
+            break;
+          default:
+            if (st->params_len < WEB_SERVER_MAX_PARAMS_LENGTH) {
+              st->params[st->params_len] = *buf;
+              st->params_len++;
+            }
+            break;
+          }
+        if (st->content_len > 0) {
+          st->content_len--;
+        }
+        buf++;
+        break;
+      case PARSING_IDLE:
+        // Nothing to do
+        return;
+      }
+  }
+  if (st->parsing_state == PARSING_PARAMS &&
+      st->content_len == 0) {
+
+    st->params[st->params_len] = 0;
+    web_server_send(i_xtcp, c_flash, conn, st);
+    st->parsing_state = PARSING_IDLE;
+  }
+}
+
+void web_server_handle_event(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                              chanend c_flash,
                              fl_SPIPorts *flash_ports,
-                             xtcp_connection_t *conn)
+                             xtcp_connection_t *conn,
+                             char buffer[])
 {
-  char inbuf[XTCP_MAX_RECEIVE_SIZE];
-
   switch (conn->event) {
     case XTCP_IFUP:
     case XTCP_IFDOWN:
-    case XTCP_ALREADY_HANDLED:
       return;
     default:
       break;
@@ -484,53 +511,26 @@ void web_server_handle_event(chanend c_xtcp,
   if (conn->local_port == WEB_SERVER_PORT) {
     connection_state_t *st = (connection_state_t *) conn->appstate;
     switch (conn->event)
-      {
+    {
       case XTCP_NEW_CONNECTION:
         st = get_new_state();
         if (st) {
           st->conn_id = conn->id;
-          xtcp_set_connection_appstate(c_xtcp, conn, (unsigned) st);
+          xtcp_set_appstate_c(i_xtcp, conn, (unsigned) st);
         }
         else
-          xtcp_abort(c_xtcp, conn);
+          xtcp_abort_c(i_xtcp, conn);
         break;
-      case XTCP_RECV_DATA: {
-        int len = xtcp_recv(c_xtcp, inbuf);
-        if (st)
-          parse_http_request(c_xtcp, conn, st, inbuf, len);
+      case XTCP_RECV_DATA:
+        if (st) {
+          parse_http_request(i_xtcp, c_flash, conn, st, buffer, conn->packet_length);
         }
         break;
-      case XTCP_REQUEST_DATA:
       case XTCP_SENT_DATA:
-        if (!st || !st->active) {
-          xtcp_complete_send(c_xtcp);
-        }
-        else if (st->next_data >= st->end_of_data) {
-          xtcp_complete_send(c_xtcp);
-          xtcp_close(c_xtcp, conn);
-          st->active = 0;
-        }
-        else {
-          if (simplefs_data_available(c_flash,
-                                      st->next_data,
-                                      WEB_SERVER_SEND_BUF_SIZE)) {
-            prepare_data(c_flash, st);
-            xtcp_send(c_xtcp, st->current_data, st->current_data_len);
-            #ifdef WEB_SERVER_POST_RENDER_FUNCTION
-            WEB_SERVER_POST_RENDER_FUNCTION((int) app_state, (int) st);
-            #endif
-            update_data_cache(c_flash);
-          }
-          else {
-            st->sending_paused = 1;
-            xtcp_complete_send(c_xtcp);
-            update_data_cache(c_flash);
-          }
-
-        }
+        web_server_send(i_xtcp, c_flash, conn, st);
         break;
       case XTCP_RESEND_DATA:
-        xtcp_send(c_xtcp, st->current_data, st->current_data_len);
+        xtcp_send_c(i_xtcp, conn, st->current_data, st->current_data_len);
         break;
       case XTCP_CLOSED:
       case XTCP_ABORTED:
@@ -543,9 +543,6 @@ void web_server_handle_event(chanend c_xtcp,
       default:
         break;
       }
-    conn->event = XTCP_ALREADY_HANDLED;
   }
   return;
 }
-
-

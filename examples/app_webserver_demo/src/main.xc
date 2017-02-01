@@ -105,7 +105,7 @@ int main(void) {
                          null, otp_ports, ipconfig);
 
     // HTTP server application
-    on tile[1]: tcp_handler(i_xtcp[0]);
+    on tile[0]: tcp_handler(i_xtcp[0]);
 
   }
   return 0;

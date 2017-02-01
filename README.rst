@@ -29,8 +29,8 @@ Typical Resource Usage
 
   * - configuration: Default
     - globals: xtcp_connection_t conn;
-    - locals: chan c;
-    - fn: {web_server_init(c, null, null);web_server_handle_event(c,null,null,conn);}
+    - locals: interface xtcp_if i; char rx_buffer[1518];
+    - fn: {web_server_init(i, null, null);web_server_handle_event(i,null,null,conn, rx_buffer);}
     - pins: 0
     - ports: 0
 

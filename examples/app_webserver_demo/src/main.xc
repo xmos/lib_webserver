@@ -1,6 +1,6 @@
 // Copyright (c) 2015-2016, XMOS Ltd, All rights reserved
-
 #include <platform.h>
+#include <print.h>
 #include "xtcp.h"
 #include "smi.h"
 #include "otp_board_info.h"
@@ -33,7 +33,8 @@ xtcp_ipconfig_t ipconfig = {
   { 0, 0, 0, 0 }  // gateway (eg 192,168,0,1)
 };
 
-
+// Maximum number of bytes to receive at once
+#define RX_BUFFER_SIZE (1518)
 #define XTCP_MII_BUFSIZE (4096)
 #define ETHERNET_SMI_PHY_ADDRESS (0)
 
@@ -47,23 +48,44 @@ int get_timer_value(char buf[], int x)
   return len;
 }
 
-
-void tcp_handler(chanend c_xtcp) {
+void tcp_handler(client interface xtcp_if i_xtcp) {
   xtcp_connection_t conn;
-  web_server_init(c_xtcp, null, null);
+  char rx_buffer[RX_BUFFER_SIZE];
+  unsigned data_len;
+
+  web_server_init(i_xtcp, null, null);
   init_web_state();
+
   while (1) {
     select
-      {
-      case xtcp_event(c_xtcp,conn):
-        web_server_handle_event(c_xtcp, null, null, conn);
+    {
+      case i_xtcp.packet_ready():
+        i_xtcp.get_packet(conn, rx_buffer, RX_BUFFER_SIZE, data_len);
+        /* Handles HTTP connections and other TCP events */
+        web_server_handle_event(i_xtcp, null, null, conn, rx_buffer);
+
+        /* Event not handled by web_server_handle_event */
+        switch(conn.event) {
+          case XTCP_IFUP:
+            xtcp_ipconfig_t ipconfig;
+            i_xtcp.get_ipconfig(ipconfig);
+
+            printstr("IP Address: ");
+            printint(ipconfig.ipaddr[0]);printstr(".");
+            printint(ipconfig.ipaddr[1]);printstr(".");
+            printint(ipconfig.ipaddr[2]);printstr(".");
+            printint(ipconfig.ipaddr[3]);printstr("\n");
+            break;
+          default:
+            break;
+        }
         break;
-      }
+    }
   }
 }
 
 int main(void) {
-  chan c_xtcp[1];
+  xtcp_if i_xtcp[1];
   mii_if i_mii;
   smi_if i_smi;
   par {
@@ -77,13 +99,13 @@ int main(void) {
     on tile[1]: smi(i_smi, p_smi_mdio, p_smi_mdc);
 
     // TCP component
-    on tile[1]: xtcp(c_xtcp, 1, i_mii,
-                     null, null, null,
-                     i_smi, ETHERNET_SMI_PHY_ADDRESS,
-                     null, otp_ports, ipconfig);
+    on tile[1]: xtcp_uip(i_xtcp, 1, i_mii,
+                         null, null, null,
+                         i_smi, ETHERNET_SMI_PHY_ADDRESS,
+                         null, otp_ports, ipconfig);
 
     // HTTP server application
-    on tile[1]: tcp_handler(c_xtcp[0]);
+    on tile[0]: tcp_handler(i_xtcp[0]);
 
   }
   return 0;

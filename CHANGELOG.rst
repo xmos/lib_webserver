@@ -1,6 +1,11 @@
 Embedded webserver library change log
 =====================================
 
+2.1.0
+-----
+
+  * Change to use lib_xtcp version 6.0.0 and the event-driven interface
+
 2.0.1
 -----
 

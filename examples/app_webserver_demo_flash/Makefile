@@ -9,7 +9,9 @@ TARGET = SLICEKIT-L16
 APP_NAME =
 
 # The USED_MODULES variable lists other module used by the application.
-USED_MODULES = lib_webserver lib_slicekit_support
+USED_MODULES = lib_webserver lib_slicekit_support lib_xtcp(>=6.0.0)
+
+XTCP_STACK=UIP
 
 # The flags passed to xcc when building the application
 # You can also set the following to override flags for a particular language:
@@ -17,8 +19,8 @@ USED_MODULES = lib_webserver lib_slicekit_support
 # If the variable XCC_MAP_FLAGS is set it overrides the flags passed to
 # xcc for the final link (mapping) stage.
 
-XCC_FLAGS_flash_in_tcp_handler = -g -O2  -DSEPARATE_FLASH_TASK=0 -lflash
-XCC_FLAGS_separate_flash_task = -g -O2 -DSEPARATE_FLASH_TASK=1 -lflash
+XCC_FLAGS_flash_in_tcp_handler = -g -O2  -DSEPARATE_FLASH_TASK=0 -lflash -DUSE_UIP=1
+XCC_FLAGS_separate_flash_task = -g -O2 -DSEPARATE_FLASH_TASK=1 -lflash -DUSE_UIP=1
 
 # The VERBOSE variable, if set to 1, enables verbose output from the make
 # system.

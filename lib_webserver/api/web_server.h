@@ -19,7 +19,7 @@
  *
  *  This function initializes the webserver.
  *
- *  \param c_xtcp         chanend connected to the xtcp server
+ *  \param i_xtcp         interface connected to the xtcp server
  *  \param c_flash        If the webserver is configured to use flash where
  *                        flash access is in a separate task. Then this chanend
  *                        parameter needs to connect to that task. Otherwise it
@@ -40,17 +40,17 @@ void web_server_init(CLIENT_INTERFACE(xtcp_if, i_xtcp),
  *  server. If the event is for the webserver port, the function will handle
  *  the event.
  *
- *  \param c_xtcp      chanend connected to the xtcp server
+ *  \param i_xtcp      interface connected to the xtcp server
  *  \param c_flash     If the webserver is configured to use flash where
  *                     flash access is in a separate task. Then this chanend
  *                     parameter needs to connect to that task. Otherwise it
  *                     should be set to null.
- *  \param flash_ports    If the webserver is configured to use flash and flash
- *                        access is not in a separate task. Then this parameter
- *                        should supply the ports to access the flash. Otherwise
- *                        it should be set to null.
- *
- *  \param conn        The tcp connection structure containing the new event
+ *  \param flash_ports If the webserver is configured to use flash and flash
+ *                     access is not in a separate task. Then this parameter
+ *                     should supply the ports to access the flash. Otherwise
+ *                     it should be set to null.
+ *  \param conn        The tcp connection structure containing the new event.
+ *  \param buffer      The buffer containing the event data.
  */
 void web_server_handle_event(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                              NULLABLE_RESOURCE(chanend, c_flash),
@@ -85,7 +85,7 @@ void web_server_flash_response(chanend c_flash);
  *  to the flash task via web_server_flash_reponse().
  *
  *  \param c_flash   chanend connected to separate flash task
- *  \param c_xtcp    chanend connected to the xtcp server
+ *  \param i_xtcp    interface connected to the xtcp server
  */
 void web_server_flash_handler(chanend c_flash, CLIENT_INTERFACE(xtcp_if, i_xtcp));
 #endif

@@ -1,3 +1,4 @@
+# Copyright (c) 2012-2015, XMOS Ltd, All rights reserved
 import sys
 import os
 import re
